@@ -5,8 +5,8 @@ import sugar
 import algorithm
 import bitops
 import strformat
+import streams
 from strutils import join
-
 
 
 type 
@@ -16,13 +16,10 @@ type
       of Fork: f:  tuple[weight: int, left: Node, right: Node, chList: seq[char]]
       of Leaf: l:  tuple[weight: int, ch: char]
 
-
-
 proc weight(nd: Node): int =
   case nd.kind:
     of Fork: nd.f.weight
     of Leaf: nd.l.weight
-
 
 proc `<`(a, b: Node): bool = weight(a) < weight(b)
 
@@ -75,30 +72,86 @@ proc print(list: Node, depth: uint = 0) =
   print(list.right, depth + 1)
   echo ")"
 
-proc encode(list: Node, c: char, path: int, depth: uint): int =
-  let leftNum = bitor(path shl 1, 1)
-  if list.kind == Leaf:
-    return path
-  if c in list.left.chList:
-    return encode(list.left, c, leftNum, depth + 1)
-  elif c in list.right.chList:
-    return encode(list.right, c, path shl 1, depth + 1)
+proc encode(root: Node, c: char): int =
+  var cNode = root
+  var path = 0 
+  while true:
+    let leftNum = bitor(path shl 1, 1)
+    if cNode.kind == Leaf:
+      return path
+    if c in cNode.left.chList:
+      path = leftNum
+      cNode = cNode.left
+    elif c in cNode.right.chList:
+      path = path shl 1
+      cNode = cNode.right
 
-proc decodePath(root: Node, list: Node, p: seq[char], r: var seq[char]) : seq[char]  =
-  if p.len == 0:
-    r.add(list.l.ch)
-    return r
-  let rest = p[1..^1]
-  if list.kind == Leaf:
-    r.add(list.l.ch)
-    result = decodePath(root, root, p, r)
-  elif p[0] == '1':
-    result = decodePath(root, list.left, rest, r)
-  else:
-    result = decodePath(root, list.right, rest, r)
+iterator encodeStream(root: Node, stream: Stream): int =
+  var cNode = root
+  var path = 0 
+  while not stream.atEnd():
+    let c = stream.readChar()
+    while true:
+      let leftNum = bitor(path shl 1, 1)
+      if cNode.kind == Leaf:
+        yield path
+        path = 0
+        cNode = root
+        break
+      if c in cNode.left.chList:
+        path = leftNum
+        cNode = cNode.left
+      elif c in cNode.right.chList:
+        path = path shl 1
+        cNode = cNode.right
+
+
+iterator decodeStream(root: Node, stream: Stream) : char  =
+  var pNode = root
+  while not stream.atEnd():
+    let x = stream.readInt8
+    var cnt = 7
+    while cnt > -1:
+      if bitand(x shr cnt, 1) == 1:
+        pNode = pNode.left
+      else:
+        pNode = pNode.right
+
+      if pNode.kind == Leaf:
+        yield pNode.l.ch
+        pNode = root
+      dec(cnt)
+
+
+iterator decodeIter(root: Node, p: seq[char]) : char  =
+  var pNode = root
+  for x in p:
+    if x == '1':
+      pNode = pNode.left
+    else:
+      pNode = pNode.right
+
+    if pNode.kind == Leaf:
+      yield pNode.l.ch
+      pNode = root
+
+
+proc decodeStr(root: Node, p: seq[char]) : seq[char]  =
+  var r: seq[char]
+  var pNode = root
+  for x in p:
+    if x == '1':
+      pNode = pNode.left
+    else:
+      pNode = pNode.right
+
+    if pNode.kind == Leaf:
+      r.add(pNode.l.ch)
+      pNode = root
+  return r
 
 proc encodeChr(list: Node, c: char): int =
-  return encode(list, c, 0, 0)
+  return encode(list, c)
 
 
 proc toLeaf(freq: seq[(char, int)]): seq[Node] =
@@ -118,10 +171,8 @@ proc encodeStr(node: Node, str: string): seq[int] =
 
 when isMainModule:
   let encoder = createEncoder("aaaakkkggggli")
-  encoder.print()
-  echo "aaaakkkggggli"
   let encodedStr = join(encoder.encodeStr("aaaakkkggggli").map(x => &"{x:b}"), "")
-  echo join(encoder.encodeStr("aaaakkkggggli").map(x => &"{x:b}"), "")
   var res: seq[char] = @[]
-  echo toSeq("aaaakkkggggli").map(x => &"{int(x):b}").join("")
-  echo(encoder.decodePath(encoder, toSeq(encodedStr), res).join(""))
+  echo join(encoder.encodeStr("aaaakkkggggli").map(x => &"{x:b}"), "")
+
+  assert(encoder.decodeStr(toSeq(encodedStr)).join("") == "aaaakkkggggli")
