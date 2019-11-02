@@ -6,6 +6,7 @@ import algorithm
 import bitops
 import strformat
 import streams
+import strutils
 from strutils import join
 
 
@@ -109,8 +110,8 @@ iterator encodeStream(root: Node, stream: Stream): int =
 iterator decodeStream(root: Node, stream: Stream) : char  =
   var pNode = root
   while not stream.atEnd():
-    let x = stream.readInt8
-    var cnt = 7
+    let x = stream.readInt32
+    var cnt = 31 
     while cnt > -1:
       if bitand(x shr cnt, 1) == 1:
         pNode = pNode.left
@@ -168,11 +169,33 @@ proc encodeStr(node: Node, str: string): seq[int] =
   let s = toSeq(str.items)
   return s.map(x => node.encodeChr(x))
 
+iterator chunk32(ch: seq[char]): seq[char] =
+  var pos = 0 
+  var en = pos + 31
+  while true:
+    if pos > ch.len:
+      break
+    if en >= ch.len:
+      yield ch[pos..^1]
+    else:
+      yield ch[pos..en]
+    inc pos, 32
+    en = pos + 31
+
 
 when isMainModule:
   let encoder = createEncoder("aaaakkkggggli")
   let encodedStr = join(encoder.encodeStr("aaaakkkggggli").map(x => &"{x:b}"), "")
-  var res: seq[char] = @[]
-  echo join(encoder.encodeStr("aaaakkkggggli").map(x => &"{x:b}"), "")
-
   assert(encoder.decodeStr(toSeq(encodedStr)).join("") == "aaaakkkggggli")
+  let k =  join(encoder.encodeStr("aaaakkkggggliaaaakkkggggliaaaakkkggggliaaaakkkggggli").map(x => &"{x:b}"), "")
+  var strm = newStringStream("")
+  for x in chunk32(toSeq(k)):
+    strm.write(fromBin[int32](join(x, "")))
+  strm.flush()
+  strm.setPosition(0)
+  var res: seq[char] = @[]
+  for y in encoder.decodeStream(strm):
+    res.add(y)
+  
+  echo res.join("")
+  
