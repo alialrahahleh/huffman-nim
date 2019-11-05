@@ -87,7 +87,7 @@ proc encode(root: Node, c: char): int =
       path = path shl 1
       cNode = cNode.right
 
-iterator encodeStream(root: Node, stream: Stream): int =
+iterator encodeStream*(root: Node, stream: Stream): int =
   var cNode = root
   var path = 0 
   while not stream.atEnd():
@@ -110,8 +110,8 @@ iterator encodeStream(root: Node, stream: Stream): int =
 iterator decodeStream(root: Node, stream: Stream) : char  =
   var pNode = root
   while not stream.atEnd():
-    let x = stream.readInt32
-    var cnt = 31 
+    let x = stream.readInt8
+    var cnt = 8 
     while cnt > -1:
       if bitand(x shr cnt, 1) == 1:
         pNode = pNode.left
@@ -137,7 +137,7 @@ iterator decodeIter(root: Node, p: seq[char]) : char  =
       pNode = root
 
 
-proc decodeStr(root: Node, p: seq[char]) : seq[char]  =
+proc decodeStr*(root: Node, p: seq[char]) : seq[char] =
   var r: seq[char]
   var pNode = root
   for x in p:
@@ -158,14 +158,14 @@ proc encodeChr(list: Node, c: char): int =
 proc toLeaf(freq: seq[(char, int)]): seq[Node] =
   freq.map(s => Node(kind: Leaf, l: (weight: s[1], ch: s[0])))
   
-proc createEncoder(chList: string): Node =
+proc createEncoder*(chList: string): Node =
   let chList = toSeq(chList.items)
   var x = sorted(toLeaf(freq(chList)), myCmp)
   while not isSingle(x):
     x = combine(x)
   return x[0]
 
-proc encodeStr(node: Node, str: string): seq[int] =
+proc encodeStr*(node: Node, str: string): seq[int] =
   let s = toSeq(str.items)
   return s.map(x => node.encodeChr(x))
 
@@ -184,18 +184,24 @@ iterator chunk32(ch: seq[char]): seq[char] =
 
 
 when isMainModule:
-  let encoder = createEncoder("aaaakkkggggli")
-  let encodedStr = join(encoder.encodeStr("aaaakkkggggli").map(x => &"{x:b}"), "")
-  assert(encoder.decodeStr(toSeq(encodedStr)).join("") == "aaaakkkggggli")
-  let k =  join(encoder.encodeStr("aaaakkkggggliaaaakkkggggliaaaakkkggggliaaaakkkggggli").map(x => &"{x:b}"), "")
-  var strm = newStringStream("")
-  for x in chunk32(toSeq(k)):
-    strm.write(fromBin[int32](join(x, "")))
-  strm.flush()
-  strm.setPosition(0)
-  var res: seq[char] = @[]
-  for y in encoder.decodeStream(strm):
-    res.add(y)
-  
-  echo res.join("")
-  
+  let encoder = createEncoder(readFile("big.txt"))
+  var readStrm = newFileStream("big.txt", fmRead)
+  var writeStrm = newFileStream("big.enc.txt", fmWrite)
+  var buffer = "" 
+  for x in encoder.encodeStream(readStrm):
+    buffer.add(&"{x:b}")
+    if buffer.len > 8:
+      writeStrm.write(fromBin[int8](buffer[0..7]))
+      buffer.delete(0, 7)
+
+  if buffer.len > 0:
+    writeStrm.write(fromBin[int8](buffer[0..^1]))
+
+  writeStrm.flush()
+#  writeStrm.setPosition(0)
+#  var res: seq[char] = @[]
+#  for y in encoder.decodeStream(writeStrm):
+#    res.add(y)
+#  
+#  echo res.join("")
+ 
