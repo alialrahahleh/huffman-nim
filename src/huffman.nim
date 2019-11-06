@@ -188,20 +188,27 @@ when isMainModule:
   var readStrm = newFileStream("big.txt", fmRead)
   var writeStrm = newFileStream("big.enc.txt", fmReadWrite)
   var buffer = "" 
+  var charNum = 0
   for x in encoder.encodeStream(readStrm):
+    inc charNum
     buffer.add(&"{x:b}")
     if buffer.len > 8:
       writeStrm.write(fromBin[int8](buffer[0..7]))
       buffer.delete(0, 7)
 
   if buffer.len > 0:
-    writeStrm.write(fromBin[int8](buffer[0..^1]))
+    writeStrm.write(
+      fromBin[int8](buffer[0..^1]) shl (8 - buffer.len)
+      )
 
   writeStrm.flush()
   writeStrm.setPosition(0)
   var res: seq[char] = @[]
   for y in encoder.decodeStream(writeStrm):
+    dec charNum
     echo(y)
+    if charNum == 0:
+      break
  
   echo res.join("")
  
