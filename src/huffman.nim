@@ -107,11 +107,11 @@ iterator encodeStream*(root: Node, stream: Stream): int =
         cNode = cNode.right
 
 
-iterator decodeStream(root: Node, stream: Stream) : char  =
+iterator decodeStream*(root: Node, stream: Stream) : char  =
   var pNode = root
   while not stream.atEnd():
     let x = stream.readInt8
-    var cnt = 8 
+    var cnt = 7 
     while cnt > -1:
       if bitand(x shr cnt, 1) == 1:
         pNode = pNode.left
@@ -186,7 +186,7 @@ iterator chunk32(ch: seq[char]): seq[char] =
 when isMainModule:
   let encoder = createEncoder(readFile("big.txt"))
   var readStrm = newFileStream("big.txt", fmRead)
-  var writeStrm = newFileStream("big.enc.txt", fmWrite)
+  var writeStrm = newFileStream("big.enc.txt", fmReadWrite)
   var buffer = "" 
   for x in encoder.encodeStream(readStrm):
     buffer.add(&"{x:b}")
@@ -198,10 +198,10 @@ when isMainModule:
     writeStrm.write(fromBin[int8](buffer[0..^1]))
 
   writeStrm.flush()
-#  writeStrm.setPosition(0)
-#  var res: seq[char] = @[]
-#  for y in encoder.decodeStream(writeStrm):
-#    res.add(y)
-#  
-#  echo res.join("")
+  writeStrm.setPosition(0)
+  var res: seq[char] = @[]
+  for y in encoder.decodeStream(writeStrm):
+    echo(y)
+ 
+  echo res.join("")
  
