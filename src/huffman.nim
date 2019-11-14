@@ -7,6 +7,7 @@ import bitops
 import strformat
 import streams
 import strutils
+import buffer
 from strutils import join
 
 
@@ -87,16 +88,18 @@ proc encode(root: Node, c: char): int =
       path = path shl 1
       cNode = cNode.right
 
-iterator encodeStream*(root: Node, stream: Stream): int =
+iterator encodeStream*(root: Node, stream: Stream): (uint32, int8) =
+  var depth: int8 = 1
   var cNode = root
-  var path = 0 
+  var path: uint32 = 0 
   while not stream.atEnd():
     let c = stream.readChar()
     while true:
       let leftNum = bitor(path shl 1, 1)
       if cNode.kind == Leaf:
-        yield path
+        yield (path, depth)
         path = 0
+        depth = 0
         cNode = root
         break
       if c in cNode.left.chList:
@@ -105,6 +108,7 @@ iterator encodeStream*(root: Node, stream: Stream): int =
       elif c in cNode.right.chList:
         path = path shl 1
         cNode = cNode.right
+      inc depth
 
 
 iterator decodeStream*(root: Node, stream: Stream) : char  =
@@ -184,29 +188,29 @@ iterator chunk32(ch: seq[char]): seq[char] =
 
 
 when isMainModule:
+  var buf =  Buffer32()
   let encoder = createEncoder(readFile("big.txt"))
   var readStrm = newFileStream("big.txt", fmRead)
   var writeStrm = newFileStream("big.enc.txt", fmReadWrite)
-  var buffer = "" 
   var charNum = 0
   for x in encoder.encodeStream(readStrm):
     inc charNum
-    buffer.add(&"{x:b}")
-    if buffer.len > 8:
-      writeStrm.write(fromBin[int8](buffer[0..7]))
-      buffer.delete(0, 7)
+    let (bits, bitNum) = x
+    buf.add(bits, bitNum)
+    if buf.size() > 8:
+      let tmp = buf.shift()
+      writeStrm.write(tmp)
 
-  if buffer.len > 0:
-    writeStrm.write(
-      fromBin[int8](buffer[0..^1]) shl (8 - buffer.len)
-      )
+  while buf.size() > 0:
+    let tmp = buf.shift()
+    writeStrm.write(tmp)
 
   writeStrm.flush()
   writeStrm.setPosition(0)
   var res: seq[char] = @[]
   for y in encoder.decodeStream(writeStrm):
     dec charNum
-    echo(y)
+    res.add(y)
     if charNum == 0:
       break
  

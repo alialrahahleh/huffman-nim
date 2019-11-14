@@ -26,7 +26,8 @@ suite "Test huffman encoding":
     let txtStream = newStringStream(textToEncode)
     var res = ""
     for x in encoder.encodeStream(txtStream):
-      res.add(x)
+      let (bitNum, _) = x
+      res.add($bitNum)
     check(res == "6662620212614230127230000014")
 
   test "test encoding/decoding stream":
@@ -35,7 +36,7 @@ suite "Test huffman encoding":
     var buffer = ""
     var charNumbers = 0
     for item in encoder.encodeStream(txtStream):
-      let x = item
+      let (x,_) = item
       buffer.add(&"{x:b}")
       inc(charNumbers)
       if buffer.len > 7:
